@@ -120,7 +120,6 @@ impl Komokana {
         let stream_read = self.kanata.clone();
         let kanata_port = self.kanata_port;
         let tmpfile = self.tmpfile;
-        let mut current_layer = None;
         log::info!("listening");
 
         std::thread::spawn(move || -> Result<()> {
@@ -144,7 +143,6 @@ impl Komokana {
                                 if tmpfile {
                                     let mut tmp = std::env::temp_dir();
                                     tmp.push("kanata_layer");
-                                    current_layer = Some(new.clone());
                                     std::fs::write(tmp, new)?;
                                 }
                             }
@@ -176,12 +174,14 @@ impl Komokana {
         });
 
         let config = self.configuration.clone();
-        let default_layer = default_layer(&self.default_layer, &current_layer).unwrap();
+        let dl = self.default_layer.clone();
         std::thread::spawn(move || -> Result<()> {
+            let dl1 = dl;
             #[allow(clippy::significant_drop_in_scrutinee)]
             for client in socket.lock().incoming() {
                 match client {
                     Ok(subscription) => {
+                        let default_layer = default_layer(dl1.clone()).unwrap();
                         let reader = BufReader::new(subscription.try_clone()?);
                         #[allow(clippy::lines_filter_map_ok)]
                         for line in reader.lines().flatten() {
@@ -412,15 +412,18 @@ fn resolve_windows_path(raw_path: &str) -> Result<PathBuf> {
     Ok(canonicalized)
 }
 
-fn default_layer(defaults: &Vec<String>, current_layer: &Option<String>) -> Result<String> {
+fn default_layer(defaults: Vec<String>) -> Result<String> {
     let mut target = String::new();
     let mut last_default = String::new();
     let mut read = std::fs::File::open("C:\\Users\\reyno\\AppData\\Local\\Temp\\last_kanata_layer")?;
     read.read_to_string(&mut last_default)?;
+    let mut current_layer = String::new();
+    read = std::fs::File::open("C:\\Users\\reyno\\AppData\\Local\\Temp\\kanata_layer")?;
+    read.read_to_string(&mut current_layer)?;
 
-    for default in defaults {
-        if let Some(current_layer) = current_layer {
-            if current_layer == default {
+    if current_layer != "" {
+        for default in &defaults {
+            if current_layer == *default {
                 target = default.clone();
                 if last_default != *default {
                     let mut tmp = std::env::temp_dir();
@@ -430,7 +433,7 @@ fn default_layer(defaults: &Vec<String>, current_layer: &Option<String>) -> Resu
                 break;
             }
         }
-   }
+    }
     if target == ""  && last_default != "" {
         target = last_default;
     } else {
