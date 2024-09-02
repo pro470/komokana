@@ -433,6 +433,8 @@ fn default_layer(defaults: Vec<String>) -> Result<String> {
                 break;
             }
         }
+    } else {
+        anyhow!("tempfile feature needs to be enabled to have multiple defaults layers so the first layer is used as the default now");
     }
     if target == ""  && last_default != "" {
         target = last_default;
